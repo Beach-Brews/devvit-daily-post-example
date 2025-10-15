@@ -1,0 +1,40 @@
+{
+  "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
+  "name": "daily-post-example-not-a-valid-app-name",
+  "post": {
+    "dir": "dist/client",
+    "entrypoints": {
+      "default": {
+        "entry": "index.html",
+        "height": "tall"
+      }
+    }
+  },
+  "server": {
+    "dir": "dist/server",
+    "entry": "index.cjs"
+  },
+  "media": {},
+  "menu": {
+    "items": [
+      {
+        "label": "Seed Daily Game Data",
+        "description": "daily-game-example",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/provide-data"
+      }
+    ]
+  },
+  "forms": {
+    "createGameForm": "/internal/form/create-game-form"
+  },
+  "scheduler": {
+    "tasks": {
+      "create-game-post-task": {
+        "endpoint": "/internal/scheduler/create-game-post",
+        "cron": "*/1 * * * *"
+      }
+    }
+  }
+}
