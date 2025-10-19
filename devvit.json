@@ -36,5 +36,37 @@
         "cron": "*/1 * * * *"
       }
     }
+  },
+  "settings": {
+    "subreddit": {
+      "logLevel": {
+        "type": "select",
+        "label": "Log Level",
+        "helpText": "Controls the level of log messages for performance.",
+        "defaultValue": "Warn",
+        "options": [
+          {
+            "label": "Error",
+            "value": "Error"
+          },
+          {
+            "label": "Warn",
+            "value": "Warn"
+          },
+          {
+            "label": "Info",
+            "value": "Info"
+          },
+          {
+            "label": "Debug",
+            "value": "Debug"
+          },
+          {
+            "label": "Trace",
+            "value": "Trace"
+          }
+        ]
+      }
+    }
   }
 }

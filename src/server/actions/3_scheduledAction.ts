@@ -7,11 +7,16 @@
 
 import { Router } from 'express';
 import { context, reddit, redis } from '@devvit/web/server';
+import { Logger } from '../utils/Logger';
 
 export const scheduledAction = (router: Router): void => {
   router.post(
     '/internal/scheduler/create-game-post',
     async (_req, res): Promise<void> => {
+      // Create a logger
+      const logger = await Logger.Create('Scheduler - Create Game Post');
+      logger.traceStart('Scheduler Action');
+
       try {
 
         /* ========== Start Focus - Read data queue + create post ========== */
@@ -30,7 +35,7 @@ export const scheduledAction = (router: Router): void => {
         // If the queue is empty, return
         const hasQueue = await redis.exists('data:queue');
         if (!hasQueue) {
-          console.log('No queued data to process.');
+          logger.info('No queued data to process.');
           res.status(200).json({
             status: 'success',
             message: 'No items to process'
@@ -83,7 +88,7 @@ export const scheduledAction = (router: Router): void => {
         await redis.del('data:queue');
 
         // Return successful result
-        console.log('Processed items and created new posts.');
+        logger.info('Processed items and created new posts.');
         res.status(200).json({
           status: 'success',
           message: 'Processed items and created new posts.'
@@ -92,11 +97,13 @@ export const scheduledAction = (router: Router): void => {
         /* ========== End Focus - Read data queue + create post ========== */
 
       } catch (error) {
-        console.error(`Error in scheduled action: ${error}`);
+        logger.error('Error in scheduled action:', error);
         res.status(400).json({
           status: 'error',
           message: 'Scheduled action failed'
         });
+      } finally {
+        logger.traceEnd();
       }
     });
 }

@@ -6,11 +6,16 @@
 
 import { Router } from 'express';
 import { context, reddit, redis } from '@devvit/web/server';
+import { Logger } from '../utils/Logger';
 
 export const initGameAction = (router: Router): void => {
   router.get(
     '/api/init',
     async (_req, res): Promise<void> => {
+      // Create a logger
+      const logger = await Logger.Create('API - Post Init');
+      logger.traceStart('API Action');
+
       try {
 
         /* ========== Start Focus - Fetch from redis + return result ========== */
@@ -18,7 +23,7 @@ export const initGameAction = (router: Router): void => {
         // Confirm post data and level name exists
         const { postData } = context;
         if (!postData || !postData.levelName || typeof postData.levelName !== 'string') {
-          console.error('API Init Error: postData.levelName not found in devvit context');
+          logger.error('API Init Error: postData.levelName not found in devvit context');
           res.status(400).json({
             status: 'error',
             message: 'postData.levelName is required but missing from context',
@@ -34,7 +39,7 @@ export const initGameAction = (router: Router): void => {
 
         // Fail if level data is missing
         if (!levelData) {
-          console.error('API Init Error: levelData not found in redis');
+          logger.error('API Init Error: levelData not found in redis');
           res.status(400).json({
             status: 'error',
             message: 'levelData is required but missing from redis',
@@ -53,11 +58,13 @@ export const initGameAction = (router: Router): void => {
         /* ========== End Focus - Fetch from redis + return result ========== */
 
       } catch (error) {
-        console.error(`Error in init action: ${error}`);
+        logger.error('Error in init action: ', error);
         res.status(400).json({
           status: 'error',
           message: 'Init action failed'
         });
+      } finally {
+        logger.traceEnd();
       }
     });
 }

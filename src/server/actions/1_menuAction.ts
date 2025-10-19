@@ -6,11 +6,16 @@
  */
 
 import { Router } from 'express';
+import { Logger } from '../utils/Logger';
 
 export const menuAction = (router: Router): void => {
   router.post(
     '/internal/menu/provide-data',
     async (_req, res): Promise<void> => {
+      // Create a logger
+      const logger = await Logger.Create('Menu - Provide Data');
+      logger.traceStart('Menu Action');
+
       try {
 
         /* ========== Start Focus - Display a form to the user ========== */
@@ -18,7 +23,7 @@ export const menuAction = (router: Router): void => {
         // See https://developers.reddit.com/docs/capabilities/client/forms
         // Show a form to enter a level name + game data for the level
         // NOTE: Currently, this will "overwrite" the level data for the given level name
-        console.log('Menu action triggered. Showing form to user.');
+        logger.info('Menu action triggered. Showing form to user.');
         res.json({
           showForm: {
             name: 'createGameForm',
@@ -42,11 +47,13 @@ export const menuAction = (router: Router): void => {
         /* ========== End Focus - Display a form to the user ========== */
 
       } catch (error) {
-        console.error(`Error in menu action: ${error}`);
+        logger.error('Error in menu action:', error);
         res.status(400).json({
           status: 'error',
           message: 'Menu action failed'
         });
+      } finally {
+        logger.traceEnd();
       }
     });
 }

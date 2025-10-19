@@ -57,3 +57,16 @@ The client / Reddit post code consists of one major "focus" area:
 1. **src/client/App.tsx** - This defines a basic app that renders the "find treasure game". The main focus is on calling
    the /api/init API to get the "treasure locations" from the back-end, then rendering the "game grid" and using the
    "treasure locations" when a user chooses a "grid box".
+
+## Logger Helper - /src/server/utils/Logger.ts
+
+I have also included my commonly used "Logger Helper", which I used for logging on the Devvit server side. It allows you
+to specify a LogLevel in app settings (see the "settings" block in Devvit.json as well). You can then create a new
+Logger with a specified label, then log messages at various log levels to help with debugging a production application.
+
+This provides all basic information needed for logging: date, area of code, log level, and the message/data. Here is an
+example log from the `src/server/actions/2_formAction.ts` file.
+
+```
+2025-10-19 12:42:03 [Form - Create Game] INFO - Form action triggered. Saving Level Four and 24 to processing queue.
+```

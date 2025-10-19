@@ -7,11 +7,16 @@
 
 import { Router } from 'express';
 import { redis } from '@devvit/web/server';
+import { Logger } from '../utils/Logger';
 
 export const formAction = (router: Router): void => {
   router.post(
     '/internal/form/create-game-form',
     async (req, res): Promise<void> => {
+      // Create a logger
+      const logger = await Logger.Create('Form - Create Game');
+      logger.traceStart('Form Action');
+
       try {
 
         /* ========== Start Focus - Queue level data ========== */
@@ -22,7 +27,7 @@ export const formAction = (router: Router): void => {
 
         // Obtain levelName and gameData from form
         const { levelName, gameData } = req.body;
-        console.log(`Form action triggered. Saving ${levelName} and ${gameData} to processing queue.`);
+        logger.info(`Form action triggered. Saving ${levelName} and ${gameData} to processing queue.`);
 
         // Stores provided level data into Redis hash.
         await redis.hSet('data:queue', { [levelName]: gameData });
@@ -38,11 +43,13 @@ export const formAction = (router: Router): void => {
         /* ========== End Focus - Queue level data ========== */
 
       } catch (error) {
-        console.error(`Error in form action: ${error}`);
+        logger.error('Error in form action:', error);
         res.status(400).json({
           status: 'error',
           message: 'Form action failed'
         });
+      } finally {
+        logger.traceEnd();
       }
     });
 }
