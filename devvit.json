@@ -35,6 +35,10 @@
         "endpoint": "/internal/scheduler/create-game-post",
         "cron": "*/1 * * * *"
       }
+      "check-deleted-users-task": {
+        "endpoint": "/internal/scheduler/check-deleted-users",
+        "cron": "0/5 * * * *"
+      }
     }
   },
   "settings": {

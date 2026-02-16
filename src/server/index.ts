@@ -6,6 +6,7 @@ import { menuAction } from './actions/1_menuAction';
 import { formAction } from './actions/2_formAction';
 import { scheduledAction } from './actions/3_scheduledAction';
 import { initGameAction } from './actions/4_initGameAction';
+import { registerUserDeleteDetectorScheduler } from './actions/5_userDeleteDetector';
 /* ========== End Focus - Import action files ========== */
 
 const app = express();
@@ -25,6 +26,10 @@ formAction(router);
 scheduledAction(router);
 initGameAction(router);
 /* ========== End Focus - Register game actions ========== */
+
+/* ========== Start Focus - Register user-delete detector actions ========== */
+registerUserDeleteDetectorScheduler(router);
+/* ========== End Focus - Register user-delete detector actions ========== */
 
 // Use router middleware
 app.use(router);
