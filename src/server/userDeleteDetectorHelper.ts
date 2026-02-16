@@ -25,17 +25,51 @@ How to Use
   }
   ```
 
-2. In your /src/server/index.ts import the `registerUserDeleteDetectorScheduler` and pass the
-router to the `registerUserDeleteDetectorScheduler` function.
+2. In your /src/server/index.ts, first define a `OnUserDeletedCallback` function.
+This function will be passed (in the next section) to the `registerUserDeleteDetectorScheduler`
+function, and will be called whenever a UserID or Username previously registered. This function
+should delete the user data previously saved in Redis. For example, if you save the UserID in a
+leaderboard, you must delete that user's score from the leaderboard:
 
   ```ts
-  import { registerUserDeleteDetectorScheduler } from './userDeleteDetector';
+  import { registerUserDeleteDetectorScheduler, OnUserDeletedCallback } from './userDeleteDetector';
   // ...
-  const router = express.Router();
-  registerUserDeleteDetectorScheduler(router);
+  const onUserDeleted: OnUserDeletedCallback =
+    async (userIdOrUsername: string, isUserId: boolean) => {
+      // =========================================== //
+      // ========== On-User Deleted Logic ========== //
+      // vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv //
+
+      // ===========================================
+      // YOUR CODE GOES HERE
+      // ===========================================
+
+      // This is where you should delete all user data you have stored.
+      // Note that userIdOrUsername is **either** the UserId **OR** Username that is passed to the
+      // registerUserForDeleteCheck function previously. You must register both if you need both,
+      // but you should structure your Redis data using one or the other (ideally UserID).
+
+      // Example: if you have a leaderboard and user awards saved for the UserId, you can delete that user's data
+      // await redis.zRem('game:leaderboard', [userIdOrUsername]);
+      // await redis.del(`usr:${userIdOrUsername}:awards`]);
+
+      // ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ //
+      // ========== On-User Deleted Logic ========== //
+      // =========================================== //
+    };
   ```
 
-3. To register a user for deletion checking, import and call the `registerUserForDeleteCheck`
+3. In your /src/server/index.ts import the `registerUserDeleteDetectorScheduler` and pass the
+`router` and your `onUserDeleted` callback to the `registerUserDeleteDetectorScheduler` function.
+
+  ```ts
+  import { registerUserDeleteDetectorScheduler, OnUserDeletedCallback } from './userDeleteDetector';
+  // ...
+  const router = express.Router();
+  registerUserDeleteDetectorScheduler(router, onUserDeleted);
+  ```
+
+4. To register a user for deletion checking, import and call the `registerUserForDeleteCheck`
 function with the UserID (preferred) or Username to watch for deletion. Keep in mind only the
 value passed will be received when the user account is deleted. If you pass UserID, you will NOT
 be able to receive the Username once deleted, and vice versa.
@@ -51,48 +85,52 @@ be able to receive the Username once deleted, and vice versa.
   await redis.zAdd('game:leaderboard', { member: user.id, score: 100} );
   await redis.hSet(`usr:${userIdOrUsername}:awards`, 'bestscore', '100');
   ```
-
-4. Modify the "On-User Deleted Logic" section below. This should delete the user data previously
-saved in Redis. For example, if you save the UserID in a leaderboard, you must delete that user's
-score from the leaderboard:
-
-  ```ts
-  await redis.zRem('game:leaderboard', [userIdOrUsername]);
-  await redis.del(`usr:${userIdOrUsername}:awards`]);
-  ```
+ *
  *
  */
 
+/**
+ * Import statements.
+ */
 import { Router } from 'express';
-import { Logger } from '../utils/Logger';
 import { reddit, redis } from '@devvit/web/server';
 
-const UserCheckRedisKey = 'usr:del:det';
-type UserT2 = `t2_${string}`;
+/**
+ * This is the cache key used to track all users who have been registered for delete detection.
+ */
+const UserCheckRedisKey = 'usr:del-det';
 
-const onUserDeleted =
-  async (userIdOrUsername: string, isUserId: boolean, logger: Logger): Promise<void> => {
-      /* =========================================== */
-      /* ========== On-User Deleted Logic ========== */
-      /* vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv */
+/**
+ * An Enum that defines the log levels used for logging messages in the Deletion Detector.
+ */
+enum LogLevel {
+  ERROR,
+  WARN,
+  INFO,
+  DEBUG
+}
 
-      // ===========================================
-      // YOUR CODE GOES HERE
-      // ===========================================
+/**
+ * Set the log level (either 'ERROR', 'WARN', 'INFO', or 'DEBUG'). You may modify the `logMessage`
+ * function at the bottom to tie into your own logging system.
+ */
+const userDetectorLogLevel = LogLevel.INFO;
 
-      // This is where you should delete all user data you have stored.
-      // Note that userIdOrUsername is **either** the UserId **OR** Username that is passed to the
-      // registerUserForDeleteCheck function previously. You must register both if you need both,
-      // but you should structure your Redis data using one or the other (ideally UserID).
+/**
+ * Helper method to log messages with different log levels. Feel free to modify to for your own logging needs.
+ * @param level - The provided LogLevel enum value
+ * @param msg
+ */
+const logMessage = (level: LogLevel, ...msg: unknown[]) => {
+  if (userDetectorLogLevel >= level)
+    console.log(`[${level}] `, ...msg);
+};
 
-      // Example: if you have a leaderboard and user awards saved for the UserId, you can delete that user's data
-      // await redis.zRem('game:leaderboard', [userIdOrUsername]);
-      // await redis.del(`usr:${userIdOrUsername}:awards`]);
-
-      /* ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ */
-      /* ========== On-User Deleted Logic ========== */
-      /* =========================================== */
-  };
+/**
+ * Defines the `OnUserDeleted` callback function signature, which is required to pass to the
+ *
+ */
+export type OnUserDeletedCallback = (userIdOrUsername: string, isUserId: boolean) => Promise<void>;
 
 /**
  * Registers a UserId or Username for deletion checks. UserId is recommended, but username is also supported.
@@ -119,15 +157,12 @@ export const unregisterUserForDeleteCheck = async (userIdOrUsername: string): Pr
 /**
  * Registers the user delete detector scheduler endpoint with Express.
  * @param router - The express router.
+ * @param onUserDeleted - A function that is called when a UserID OR Username has been detected as deleted.
  */
-export const registerUserDeleteDetectorScheduler = (router: Router): void => {
+export const registerUserDeleteDetectorScheduler = (router: Router, onUserDeleted: OnUserDeletedCallback): void => {
   router.post(
     '/internal/scheduler/check-deleted-users',
     async (_req, res): Promise<void> => {
-      // Create a logger
-      const logger = await Logger.Create('Scheduler - User Delete Detector');
-      logger.traceStart(`Scheduler Action`);
-
       try {
 
         /* ========== Start Focus - Get users to check + check for delete ========== */
@@ -159,7 +194,7 @@ export const registerUserDeleteDetectorScheduler = (router: Router): void => {
         if (usersToCheck && usersToCheck.length > 0) {
 
           // Log a debug message with number of users checked for deletion
-          logger.debug(`Found ${usersToCheck.length} users to check for deletion`);
+          logMessage(LogLevel.DEBUG, `Found ${usersToCheck.length} users to check for deletion`);
 
           // For each user that needs checked...
           for (const user of usersToCheck) {
@@ -169,23 +204,23 @@ export const registerUserDeleteDetectorScheduler = (router: Router): void => {
 
             // Try to fetch their user profile
             const userProfile = isUserId
-              ? await reddit.getUserById(user.member as UserT2)
+              ? await reddit.getUserById(user.member as `t2_${string}`)
               : await reddit.getUserByUsername(user.member);
 
             // If returned undefined, the user was deleted
             if (!userProfile) {
-              logger.info(`Found user ${user.member} has been deleted`);
+              logMessage(LogLevel.INFO, `Found user ${user.member} has been deleted`);
 
               // Try to delete user (log error if failed)
               try {
                 // Call delete callback (above)
-                await onUserDeleted(user.member, isUserId, logger);
+                await onUserDeleted(user.member, isUserId);
 
                 // Remove the user from the detector list if successful
                 await redis.zRem(UserCheckRedisKey, [user.member]);
 
               } catch (error) {
-                logger.error(`Error while processing deletion of user ${user.member}:`, error);
+                logMessage(LogLevel.ERROR, `Error while processing deletion of user ${user.member}:`, error);
               }
 
             } else {
@@ -196,29 +231,27 @@ export const registerUserDeleteDetectorScheduler = (router: Router): void => {
             // Check if the job has been running for 15 seconds, log a message and break from the loop
             // NOTICE: If you see this message a lot, you may want to increase the scheduler frequency to every minute!
             if ((Date.now() - startTime) > 15000) {
-              logger.warn('User delete checking reached 15 seconds. Continuing on next run.')
+              logMessage(LogLevel.WARN, 'User delete checking reached 15 seconds. Continuing on next run.')
               break;
             }
           }
 
         } else {
           // If there were no users to check yet, print a debug message
-          logger.debug(`Found 0 users to check for deletion`);
+          logMessage(LogLevel.DEBUG, 'Found 0 users to check for deletion');
         }
 
         /* ========== End Focus - Get users to check + check for delete ========== */
 
-        logger.debug('Done checking for deleted users.');
+        logMessage(LogLevel.DEBUG, 'Done checking for deleted users.');
         res.status(200).json({ status: 'complete' });
 
       } catch (error) {
-        logger.error('Error in delete-user detector scheduler:', error);
+        logMessage(LogLevel.ERROR, 'Error in delete-user detector scheduler:', error);
         res.status(500).json({
           status: 'error',
           message: `Error in delete-user detector scheduler: ${error}`
         });
-      } finally {
-        logger.traceEnd();
       }
     }
   );
