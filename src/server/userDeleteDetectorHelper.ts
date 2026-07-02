@@ -155,6 +155,25 @@ export const unregisterUserForDeleteCheck = async (userIdOrUsername: string): Pr
 };
 
 /**
+ * Copyright Notice: Adapted from FSV's getRawUserData to capture the 404/403 exceptions when user is banned/deleted
+ * https://github.com/fsvreddit/fsv-devvit-helpers/blob/main/src/extendedDevvit/userExtended.ts#L6
+ * @param userIdOrUsername - The user ID or username to get
+ * @param isUserId - Whether the userIdOrUsername provided is a username or ID
+ */
+const getUserOrUndefined = async (userIdOrUsername: string, isUserId: boolean) => {
+  try {
+    return isUserId
+      ? await reddit.getUserById(userIdOrUsername as `t2_${string}`)
+      : await reddit.getUserByUsername(userIdOrUsername);
+  } catch (error) {
+    if (error instanceof Error && (error.message.includes("404 Not Found") || error.message.includes("403 Forbidden"))) {
+      return undefined; // Return undefined if the user was now deleted
+    }
+    throw error; // Rethrow the error if it's not a 404 or 403
+  }
+};
+
+/**
  * Registers the user delete detector scheduler endpoint with Express.
  * @param router - The express router.
  * @param onUserDeleted - A function that is called when a UserID OR Username has been detected as deleted.
@@ -186,9 +205,9 @@ export const registerUserDeleteDetectorScheduler = (router: Router, onUserDelete
         // resume user checks at the next 5-minute run!
         const startTime = Date.now();
 
-        // Fetch any users who have not been checked in the last 24 hours
-        const oneDayMs = 86400000; // Milliseconds in 1 day
-        const usersToCheck = await redis.zRange(UserCheckRedisKey, 0, startTime - oneDayMs, { by: 'score'});
+        // Fetch any users who have not been checked in the last 7 days hours
+        const weekMs = 604800000; // Milliseconds in 7 days
+        const usersToCheck = await redis.zRange(UserCheckRedisKey, 0, startTime - weekMs, { by: 'score'});
 
         // If there are users to check...
         if (usersToCheck && usersToCheck.length > 0) {
@@ -203,9 +222,7 @@ export const registerUserDeleteDetectorScheduler = (router: Router, onUserDelete
             const isUserId = user.member.indexOf('t2_') === 0;
 
             // Try to fetch their user profile
-            const userProfile = isUserId
-              ? await reddit.getUserById(user.member as `t2_${string}`)
-              : await reddit.getUserByUsername(user.member);
+            const userProfile = getUserOrUndefined(user.member, isUserId);
 
             // If returned undefined, the user was deleted
             if (!userProfile) {
